@@ -311,7 +311,7 @@ async function createGist() {
 
 async function pushCloud() {
   const token = document.getElementById('gistToken').value.trim();
-  const gistId = document.getElementById('gistId').value.trim();
+  const gistId = document.getElementById('gistId').value.trim().split('/').pop();
   if (!token || !gistId) return setSyncStatus('⚠️ Cần nhập đủ Token và Gist ID.');
   syncCfg.token = token;
   syncCfg.gistId = gistId;
@@ -332,7 +332,7 @@ async function pushCloud() {
 
 async function pullCloud(silent = false) {
   const token = (document.getElementById('gistToken')?.value || syncCfg.token || '').trim();
-  const gistId = (document.getElementById('gistId')?.value || syncCfg.gistId || '').trim();
+  const gistId = (document.getElementById('gistId')?.value || syncCfg.gistId || '').trim().split('/').pop();
   if (!token || !gistId) {
     if (!silent) setSyncStatus('⚠️ Cần nhập đủ Token và Gist ID.');
     return;
