@@ -1,6 +1,8 @@
 const DATA_KEY = 'our_love_data_v1';
 const CFG_KEY = 'our_love_sync_cfg_v1';
-const GIST_FILE = 'our-love-data.json';
+const FIREBASE_URL = 'https://tu-vung-anle-default-rtdb.firebaseio.com';
+const CLOUD_ENDPOINT = `${FIREBASE_URL}/date_love/shared_data.json`;
+let autoPushTimer = null;
 
 const QUOTES = [
   'Mỗi ngày bên nhau là một điều đáng nhớ. ♥',
@@ -37,19 +39,26 @@ function loadData() {
 function saveData() {
   appData.updatedAt = Date.now();
   localStorage.setItem(DATA_KEY, JSON.stringify(appData));
+  scheduleAutoPush();
+}
+
+function scheduleAutoPush() {
+  clearTimeout(autoPushTimer);
+  autoPushTimer = setTimeout(() => pushCloud(true), 1500);
 }
 
 function loadCfg() {
+  const base = { autoPull: false, theme: 'dark' };
   try {
-    return JSON.parse(localStorage.getItem(CFG_KEY)) || { token: '', gistId: '', autoPull: false, theme: 'dark' };
+    const cfg = JSON.parse(localStorage.getItem(CFG_KEY)) || {};
+    return { ...base, autoPull: Boolean(cfg.autoPull), theme: cfg.theme === 'light' ? 'light' : 'dark' };
   } catch {
-    return { token: '', gistId: '', autoPull: false, theme: 'dark' };
+    return base;
   }
 }
 
 function saveCfg() {
   localStorage.setItem(CFG_KEY, JSON.stringify(syncCfg));
-  updateSyncDot();
 }
 
 function esc(str) {
@@ -273,9 +282,9 @@ function renderAll() {
   renderHurts();
 }
 
-function updateSyncDot() {
+function updateSyncDot(online = false) {
   const dot = document.getElementById('syncDot');
-  if (dot) dot.classList.toggle('online', Boolean(syncCfg.token && syncCfg.gistId));
+  if (dot) dot.classList.toggle('online', Boolean(online));
 }
 
 function setSyncStatus(msg) {
@@ -283,78 +292,71 @@ function setSyncStatus(msg) {
   if (el) el.textContent = msg;
 }
 
-async function createGist() {
-  const token = document.getElementById('gistToken').value.trim();
-  if (!token) return setSyncStatus('⚠️ Bạn cần dán GitHub Token trước.');
-  setSyncStatus('⏳ Đang tạo kho Cloud trên GitHub...');
-  try {
-    const res = await fetch('https://api.github.com/gists', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        description: 'Goc Nho Cua Hai Dua - Love Data',
-        public: false,
-        files: { [GIST_FILE]: { content: JSON.stringify(appData) } }
-      })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    syncCfg.token = token;
-    syncCfg.gistId = data.id;
-    document.getElementById('gistId').value = data.id;
-    saveCfg();
-    setSyncStatus(`✅ Đã tạo kho Cloud thành công! Gist ID: ${data.id}`);
-  } catch (err) {
-    setSyncStatus(`❌ Lỗi tạo Gist (${err.message}). Kiểm tra lại quyền "gist" của Token.`);
-  }
+function nowVN() {
+  return new Date().toLocaleTimeString('vi-VN');
 }
 
-async function pushCloud() {
-  const token = document.getElementById('gistToken').value.trim();
-  const gistId = document.getElementById('gistId').value.trim().split('/').pop();
-  if (!token || !gistId) return setSyncStatus('⚠️ Cần nhập đủ Token và Gist ID.');
-  syncCfg.token = token;
-  syncCfg.gistId = gistId;
-  saveCfg();
-  setSyncStatus('⏳ Đang đẩy dữ liệu lên Cloud...');
+function mergeList(localList, cloudList, cloudNewer) {
+  const keyOf = item => (item && item.id != null ? `id:${item.id}` : `json:${JSON.stringify(item)}`);
+  const map = new Map();
+  const first = cloudNewer ? localList : cloudList;
+  const second = cloudNewer ? cloudList : localList;
+  for (const item of Array.isArray(first) ? first : []) map.set(keyOf(item), item);
+  for (const item of Array.isArray(second) ? second : []) map.set(keyOf(item), item);
+  return [...map.values()];
+}
+
+function mergeData(local, cloud) {
+  const cloudNewer = Number(cloud.updatedAt || 0) >= Number(local.updatedAt || 0);
+  const base = cloudNewer ? { ...local, ...cloud } : { ...cloud, ...local };
+  return {
+    ...defaultData,
+    ...base,
+    wishes: mergeList(local.wishes, cloud.wishes, cloudNewer),
+    memories: mergeList(local.memories, cloud.memories, cloudNewer),
+    hurts: mergeList(local.hurts, cloud.hurts, cloudNewer),
+    updatedAt: Math.max(Number(local.updatedAt || 0), Number(cloud.updatedAt || 0))
+  };
+}
+
+async function pushCloud(silent = false) {
+  clearTimeout(autoPushTimer);
+  if (!silent) setSyncStatus('⏳ Đang đẩy dữ liệu lên Cloud...');
   try {
-    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(appData) } } })
+    const res = await fetch(CLOUD_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appData)
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    setSyncStatus(`✅ Đã đẩy dữ liệu lên Cloud lúc ${new Date().toLocaleTimeString('vi-VN')}!`);
+    updateSyncDot(true);
+    setSyncStatus(`✅ ${silent ? 'Tự động lưu' : 'Đã đẩy dữ liệu'} lên Cloud lúc ${nowVN()}.`);
   } catch (err) {
-    setSyncStatus(`❌ Lỗi đẩy dữ liệu (${err.message}).`);
+    updateSyncDot(false);
+    const reason = err instanceof TypeError ? 'mất kết nối mạng' : err.message;
+    setSyncStatus(`❌ Lỗi đẩy dữ liệu lên Cloud (${reason}).`);
   }
 }
 
 async function pullCloud(silent = false) {
-  const token = (document.getElementById('gistToken')?.value || syncCfg.token || '').trim();
-  const gistId = (document.getElementById('gistId')?.value || syncCfg.gistId || '').trim().split('/').pop();
-  if (!token || !gistId) {
-    if (!silent) setSyncStatus('⚠️ Cần nhập đủ Token và Gist ID.');
-    return;
-  }
-  syncCfg.token = token;
-  syncCfg.gistId = gistId;
-  saveCfg();
   if (!silent) setSyncStatus('⏳ Đang tải dữ liệu từ Cloud...');
   try {
-    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await fetch(CLOUD_ENDPOINT, { method: 'GET' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const raw = data.files?.[GIST_FILE]?.content;
-    if (!raw) throw new Error('Không thấy file dữ liệu trong Gist');
-    appData = { ...defaultData, ...JSON.parse(raw) };
+    const cloud = await res.json();
+    updateSyncDot(true);
+    if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) {
+      setSyncStatus('ℹ️ Cloud chưa có dữ liệu. Hãy bấm "Đẩy dữ liệu lên Cloud" trước.');
+      return;
+    }
+    appData = mergeData(appData, cloud);
     localStorage.setItem(DATA_KEY, JSON.stringify(appData));
     renderAll();
-    if (!silent) setSyncStatus(`✅ Đã đồng bộ dữ liệu mới nhất lúc ${new Date().toLocaleTimeString('vi-VN')}!`);
+    setSyncStatus(`✅ Đã tải & gộp dữ liệu từ Cloud lúc ${nowVN()}.`);
   } catch (err) {
-    if (!silent) setSyncStatus(`❌ Lỗi tải dữ liệu (${err.message}).`);
+    updateSyncDot(false);
+    const reason = err instanceof TypeError ? 'mất kết nối mạng' : err.message;
+    setSyncStatus(`❌ Lỗi tải dữ liệu từ Cloud (${reason}).`);
   }
 }
 
@@ -495,16 +497,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cloud Sync Modal
   const modal = document.getElementById('syncModal');
   document.getElementById('btnOpenSync')?.addEventListener('click', () => {
-    document.getElementById('gistToken').value = syncCfg.token || '';
-    document.getElementById('gistId').value = syncCfg.gistId || '';
-    document.getElementById('autoPullCheck').checked = Boolean(syncCfg.autoPull);
-    modal.hidden = false;
+    const autoPull = document.getElementById('autoPullCheck');
+    if (autoPull) autoPull.checked = Boolean(syncCfg.autoPull);
+    if (modal) modal.hidden = false;
   });
-  document.getElementById('btnCloseSync')?.addEventListener('click', () => { modal.hidden = true; });
+  document.getElementById('btnCloseSync')?.addEventListener('click', () => { if (modal) modal.hidden = true; });
   modal?.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
 
-  document.getElementById('btnCreateGist')?.addEventListener('click', createGist);
-  document.getElementById('btnPushCloud')?.addEventListener('click', pushCloud);
+  document.getElementById('btnPushCloud')?.addEventListener('click', () => pushCloud(false));
   document.getElementById('btnPullCloud')?.addEventListener('click', () => pullCloud(false));
   document.getElementById('autoPullCheck')?.addEventListener('change', e => {
     syncCfg.autoPull = e.target.checked;
@@ -540,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsText(file);
   });
 
-  if (syncCfg.autoPull && syncCfg.token && syncCfg.gistId) {
+  if (syncCfg.autoPull) {
     pullCloud(true);
   }
 });

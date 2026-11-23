@@ -223,17 +223,10 @@
         <h3>☁️ Cloud Sync</h3>
         <button id="btnCloseSync" class="icon-btn">✕</button>
       </div>
-      <p class="sub-desc">Đồng bộ dữ liệu giữa 2 điện thoại qua GitHub Gist bí mật.</p>
+      <p class="sub-desc">Đồng bộ trực tiếp giữa 2 điện thoại, không cần Token hay Gist ID.</p>
 
       <div class="stack-form">
-        <label>GitHub Personal Access Token (quyền gist)</label>
-        <input type="password" id="gistToken" placeholder="ghp_..." autocomplete="off" />
-
-        <label>Gist ID (để trống nếu tạo kho mới lần đầu)</label>
-        <input type="text" id="gistId" placeholder="Tự động điền sau khi tạo kho mới" />
-
-        <button type="button" id="btnCreateGist" class="primary-btn">✨ Tạo kho Cloud mới</button>
-        <button type="button" id="btnPushCloud" class="secondary-btn">⬆️ Đẩy dữ liệu lên Cloud</button>
+        <button type="button" id="btnPushCloud" class="primary-btn">⬆️ Đẩy dữ liệu lên Cloud</button>
         <button type="button" id="btnPullCloud" class="secondary-btn">⬇️ Tải dữ liệu từ Cloud về</button>
 
         <label class="check-row">
