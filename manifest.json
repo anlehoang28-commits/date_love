@@ -1,13 +1,13 @@
 {
   "name": "Góc Nhỏ Của Hai Đứa",
-  "short_name": "Góc Nhỏ",
+  "short_name": "Hai Đứa",
   "description": "Không gian riêng của hai đứa mình 💕",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#130d1d",
-  "theme_color": "#130d1d",
+  "theme_color": "#ff6b9d",
   "lang": "vi",
   "icons": [
     {
