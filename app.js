@@ -30,15 +30,36 @@ let syncCfg = loadCfg();
 function loadData() {
   try {
     const raw = localStorage.getItem(DATA_KEY);
-    return raw ? { ...defaultData, ...JSON.parse(raw) } : { ...defaultData };
+    return normalizeData(raw ? JSON.parse(raw) : {});
   } catch {
-    return { ...defaultData };
+    return normalizeData({});
   }
+}
+
+function normalizeData(obj) {
+  const d = obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+  return {
+    ...defaultData,
+    ...d,
+    wishes: Array.isArray(d.wishes) ? d.wishes : [],
+    memories: Array.isArray(d.memories) ? d.memories : [],
+    hurts: Array.isArray(d.hurts) ? d.hurts : [],
+    deletedIds: Array.isArray(d.deletedIds) ? d.deletedIds.map(String) : []
+  };
+}
+
+function localDateStr(date = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
 }
 
 function saveData() {
   appData.updatedAt = Date.now();
-  localStorage.setItem(DATA_KEY, JSON.stringify(appData));
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify(appData));
+  } catch {
+    setSyncStatus('⚠️ Bộ nhớ trình duyệt đã đầy, không lưu được trên máy. Hãy xóa bớt ảnh.');
+  }
   scheduleAutoPush();
 }
 
@@ -65,6 +86,14 @@ function esc(str) {
   return String(str || '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+function safeId(id) {
+  return String(id ?? '').replace(/[^\w-]/g, '');
+}
+
+function safeImg(src) {
+  return typeof src === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src) ? src : '';
 }
 
 function compressImage(file, maxSize, quality) {
@@ -144,8 +173,8 @@ function updateTimer() {
 
   const milestones = [100, 200, 365, 500, 730, 1000, 1500, 2000, 3650];
   const next = milestones.find(m => m > days) || (Math.floor(days / 100) + 1) * 100;
-  const prev = milestones[milestones.indexOf(next) - 1] || 0;
-  const pct = Math.min(100, Math.max(4, Math.round(((days - prev) / (next - prev)) * 100)));
+  const prev = Math.max(0, ...milestones.filter(m => m <= days), next - 100 <= days && !milestones.includes(next) ? next - 100 : 0);
+  const pct = Math.min(100, Math.max(4, Math.round(((days - prev) / Math.max(1, next - prev)) * 100)));
 
   const mText = document.getElementById('milestoneText');
   const mBar = document.getElementById('milestoneBar');
@@ -182,15 +211,15 @@ function renderWishes() {
         </div>
         <div class="entry-body">${esc(w.content)}</div>
         <div class="entry-actions">
-          <button class="mini-btn ok" onclick="toggleWish('${w.id}')">${w.done ? '✓ Đã chiều ý' : 'Đánh dấu đã làm'}</button>
-          <button class="mini-btn del" onclick="deleteWish('${w.id}')">Xóa</button>
+          <button class="mini-btn ok" onclick="toggleWish('${safeId(w.id)}')">${w.done ? '✓ Đã chiều ý' : 'Đánh dấu đã làm'}</button>
+          <button class="mini-btn del" onclick="deleteWish('${safeId(w.id)}')">Xóa</button>
         </div>
       </div>`;
   }).join('');
 }
 
 window.toggleWish = id => {
-  const item = appData.wishes.find(w => w.id === id);
+  const item = appData.wishes.find(w => safeId(w.id) === id);
   if (item) {
     item.done = !item.done;
     saveData();
@@ -199,7 +228,8 @@ window.toggleWish = id => {
 };
 
 window.deleteWish = id => {
-  appData.wishes = appData.wishes.filter(w => w.id !== id);
+  markDeleted(id);
+  appData.wishes = appData.wishes.filter(w => safeId(w.id) !== id);
   saveData();
   renderWishes();
 };
@@ -220,16 +250,17 @@ function renderMemories() {
       </div>
       <strong>${esc(m.title)}</strong>
       ${m.note ? `<div class="entry-body">${esc(m.note)}</div>` : ''}
-      ${m.photo ? `<img class="entry-photo" src="${m.photo}" alt="Kỷ niệm" />` : ''}
+      ${safeImg(m.photo) ? `<img class="entry-photo" src="${safeImg(m.photo)}" alt="Kỷ niệm" />` : ''}
       <div class="entry-actions">
-        <button class="mini-btn del" onclick="deleteMemory('${m.id}')">Xóa</button>
+        <button class="mini-btn del" onclick="deleteMemory('${safeId(m.id)}')">Xóa</button>
       </div>
     </div>
   `).join('');
 }
 
 window.deleteMemory = id => {
-  appData.memories = appData.memories.filter(m => m.id !== id);
+  markDeleted(id);
+  appData.memories = appData.memories.filter(m => safeId(m.id) !== id);
   saveData();
   renderMemories();
 };
@@ -250,15 +281,15 @@ function renderHurts() {
       <div class="entry-body">${esc(h.content)}</div>
       ${h.heal ? `<div class="sub-desc">Mong muốn: ${esc(h.heal)}</div>` : ''}
       <div class="entry-actions">
-        <button class="mini-btn ok" onclick="toggleHurt('${h.id}')">${h.healed ? '💚 Đã hiểu nhau hơn' : 'Đánh dấu đã làm hòa'}</button>
-        <button class="mini-btn del" onclick="deleteHurt('${h.id}')">Xóa</button>
+        <button class="mini-btn ok" onclick="toggleHurt('${safeId(h.id)}')">${h.healed ? '💚 Đã hiểu nhau hơn' : 'Đánh dấu đã làm hòa'}</button>
+        <button class="mini-btn del" onclick="deleteHurt('${safeId(h.id)}')">Xóa</button>
       </div>
     </div>
   `).join('');
 }
 
 window.toggleHurt = id => {
-  const item = appData.hurts.find(h => h.id === id);
+  const item = appData.hurts.find(h => safeId(h.id) === id);
   if (item) {
     item.healed = !item.healed;
     saveData();
@@ -267,7 +298,8 @@ window.toggleHurt = id => {
 };
 
 window.deleteHurt = id => {
-  appData.hurts = appData.hurts.filter(h => h.id !== id);
+  markDeleted(id);
+  appData.hurts = appData.hurts.filter(h => safeId(h.id) !== id);
   saveData();
   renderHurts();
 };
@@ -309,20 +341,40 @@ function mergeList(localList, cloudList, cloudNewer) {
 function mergeData(local, cloud) {
   const cloudNewer = Number(cloud.updatedAt || 0) >= Number(local.updatedAt || 0);
   const base = cloudNewer ? { ...local, ...cloud } : { ...cloud, ...local };
+  const deletedIds = [...new Set([
+    ...(Array.isArray(local.deletedIds) ? local.deletedIds : []),
+    ...(Array.isArray(cloud.deletedIds) ? cloud.deletedIds : [])
+  ].map(String))];
+  const alive = list => list.filter(item => !(item && item.id != null && deletedIds.includes(safeId(item.id))));
   return {
-    ...defaultData,
-    ...base,
-    wishes: mergeList(local.wishes, cloud.wishes, cloudNewer),
-    memories: mergeList(local.memories, cloud.memories, cloudNewer),
-    hurts: mergeList(local.hurts, cloud.hurts, cloudNewer),
+    ...normalizeData(base),
+    wishes: alive(mergeList(local.wishes, cloud.wishes, cloudNewer)),
+    memories: alive(mergeList(local.memories, cloud.memories, cloudNewer)),
+    hurts: alive(mergeList(local.hurts, cloud.hurts, cloudNewer)),
+    deletedIds,
     updatedAt: Math.max(Number(local.updatedAt || 0), Number(cloud.updatedAt || 0))
   };
+}
+
+function markDeleted(id) {
+  if (!Array.isArray(appData.deletedIds)) appData.deletedIds = [];
+  if (!appData.deletedIds.includes(String(id))) appData.deletedIds.push(String(id));
 }
 
 async function pushCloud(silent = false) {
   clearTimeout(autoPushTimer);
   if (!silent) setSyncStatus('⏳ Đang đẩy dữ liệu lên Cloud...');
   try {
+    // Gộp dữ liệu Cloud trước khi ghi đè để không xóa mất thay đổi từ máy kia
+    const current = await fetch(CLOUD_ENDPOINT, { method: 'GET' });
+    if (!current.ok) throw new Error(`HTTP ${current.status}`);
+    const cloud = await current.json();
+    if (cloud && typeof cloud === 'object' && !Array.isArray(cloud)) {
+      appData = mergeData(appData, cloud);
+      appData.updatedAt = Date.now();
+      try { localStorage.setItem(DATA_KEY, JSON.stringify(appData)); } catch { /* quota */ }
+      renderAll();
+    }
     const res = await fetch(CLOUD_ENDPOINT, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -350,7 +402,7 @@ async function pullCloud(silent = false) {
       return;
     }
     appData = mergeData(appData, cloud);
-    localStorage.setItem(DATA_KEY, JSON.stringify(appData));
+    try { localStorage.setItem(DATA_KEY, JSON.stringify(appData)); } catch { /* quota */ }
     renderAll();
     setSyncStatus(`✅ Đã tải & gộp dữ liệu từ Cloud lúc ${nowVN()}.`);
   } catch (err) {
@@ -364,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (syncCfg.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
   updateSyncDot();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   if (document.getElementById('memoryDate')) document.getElementById('memoryDate').value = today;
   if (document.getElementById('hurtDate')) document.getElementById('hurtDate').value = today;
 
@@ -405,9 +457,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(`avatar${idx}Input`)?.addEventListener('change', async e => {
       const file = e.target.files?.[0];
       if (!file) return;
-      appData[`avatar${idx}`] = await compressImage(file, 160, 0.7);
-      saveData();
-      renderAvatarsAndNames();
+      try {
+        appData[`avatar${idx}`] = await compressImage(file, 160, 0.7);
+        saveData();
+        renderAvatarsAndNames();
+      } catch {
+        setSyncStatus('❌ Không đọc được ảnh, hãy chọn ảnh khác.');
+      } finally {
+        e.target.value = '';
+      }
     });
     document.getElementById(`btnEditName${idx}`)?.addEventListener('click', () => {
       const nextName = prompt('Nhập biệt danh mới:', appData[`name${idx}`]);
@@ -451,8 +509,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('memoryPhotoInput')?.addEventListener('change', async e => {
     const file = e.target.files?.[0];
     if (!file) return;
-    pendingPhoto = await compressImage(file, 600, 0.65);
-    document.getElementById('memoryPhotoLabel').textContent = `✅ Đã chọn ảnh: ${file.name}`;
+    const label = document.getElementById('memoryPhotoLabel');
+    try {
+      pendingPhoto = await compressImage(file, 600, 0.65);
+      if (label) label.textContent = `✅ Đã chọn ảnh: ${file.name}`;
+    } catch {
+      pendingPhoto = '';
+      setSyncStatus('❌ Không đọc được ảnh, hãy chọn ảnh khác.');
+    } finally {
+      e.target.value = '';
+    }
   });
   document.getElementById('memoryForm')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -517,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     a.href = URL.createObjectURL(blob);
     a.download = 'goc-nho-hai-dua.json';
     a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setSyncStatus('📥 Đã tải xuống file dự phòng goc-nho-hai-dua.json');
   });
 
@@ -529,12 +596,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        appData = { ...defaultData, ...JSON.parse(ev.target.result) };
+        const parsed = JSON.parse(ev.target.result);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
+        appData = normalizeData(parsed);
         saveData();
         renderAll();
         setSyncStatus('✅ Đã khôi phục dữ liệu từ file .json!');
       } catch {
         setSyncStatus('❌ File .json không hợp lệ.');
+      } finally {
+        e.target.value = '';
       }
     };
     reader.readAsText(file);
