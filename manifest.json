@@ -1,0 +1,20 @@
+{
+  "name": "Góc Nhỏ Của Hai Đứa",
+  "short_name": "Góc Nhỏ",
+  "description": "Không gian riêng của hai đứa mình 💕",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#130d1d",
+  "theme_color": "#130d1d",
+  "lang": "vi",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%23130d1d'/%3E%3Cpath d='M256 430 C120 330 70 260 70 190 C70 130 115 90 170 90 C210 90 240 112 256 145 C272 112 302 90 342 90 C397 90 442 130 442 190 C442 260 392 330 256 430Z' fill='%23ff6b9d'/%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
