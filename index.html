@@ -1,178 +1,257 @@
-<!doctype html>
-<html lang="vi" data-theme="dark">
+<!DOCTYPE html>
+<html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#ff6b9d">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#130d1d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Góc Nhỏ Của Hai Đứa</title>
-  <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="hearts" aria-hidden="true"><span>♥</span><span>♥</span><span>♥</span><span>♥</span></div>
+  <div class="bg-hearts" aria-hidden="true">
+    <span>♥</span><span>♥</span><span>♥</span><span>♥</span><span>♥</span><span>♥</span>
+  </div>
+
   <div class="app-shell">
-    <header class="app-header">
-      <h1>💕 Góc Nhỏ Của Hai Đứa</h1>
-      <div class="header-actions">
-        <button id="btnTheme" class="icon-button" type="button" aria-label="Bật giao diện sáng" aria-pressed="false">☀️</button>
-        <button id="btnOpenSync" type="button" aria-haspopup="dialog">☁️ Cloud Sync <span id="syncDot" class="sync-dot" role="img" aria-label="Chưa kết nối"></span></button>
+    <header class="top-bar">
+      <div class="brand">💕 Góc Nhỏ Của Hai Đứa</div>
+      <div class="top-actions">
+        <button id="btnTheme" class="icon-btn" title="Đổi giao diện Sáng/Tối">☀️</button>
+        <button id="btnOpenSync" class="sync-pill">
+          <span>☁️ Cloud Sync</span>
+          <span id="syncDot" class="sync-dot"></span>
+        </button>
       </div>
     </header>
-    <main class="tab-content">
-      <section id="tab-home" aria-labelledby="homeHeading">
-        <div class="glass couple">
-          <div class="partner">
-            <div class="avatar-frame"><img id="avatar1Img" alt="" hidden><span aria-hidden="true">♡</span></div>
-            <strong id="name1Text">Anh</strong>
-            <input id="avatar1Input" type="file" accept="image/*" aria-label="Ảnh đại diện của Anh" hidden>
+
+    <main class="content">
+      <!-- TAB 1: TRANG CHỦ -->
+      <section id="tab-home" class="tab-pane active">
+        <div class="glass-card couple-card">
+          <div class="couple-row">
+            <div class="person">
+              <div id="avatar1Box" class="avatar-ring" title="Chạm để đổi ảnh đại diện">
+                <img id="avatar1Img" alt="Avatar 1" hidden />
+                <span id="avatar1Placeholder" class="avatar-heart">♡</span>
+              </div>
+              <input type="file" id="avatar1Input" accept="image/*" hidden />
+              <button id="btnEditName1" class="name-btn" title="Chạm để đổi biệt danh">
+                <span id="name1Text">Anh</span> ✎
+              </button>
+            </div>
+
+            <div class="center-heart">💗</div>
+
+            <div class="person">
+              <div id="avatar2Box" class="avatar-ring purple" title="Chạm để đổi ảnh đại diện">
+                <img id="avatar2Img" alt="Avatar 2" hidden />
+                <span id="avatar2Placeholder" class="avatar-heart">♡</span>
+              </div>
+              <input type="file" id="avatar2Input" accept="image/*" hidden />
+              <button id="btnEditName2" class="name-btn" title="Chạm để đổi biệt danh">
+                <span id="name2Text">Em</span> ✎
+              </button>
+            </div>
           </div>
-          <span class="couple-heart" aria-hidden="true">♥</span>
-          <div class="partner">
-            <div class="avatar-frame"><img id="avatar2Img" alt="" hidden><span aria-hidden="true">♡</span></div>
-            <strong id="name2Text">Em</strong>
-            <input id="avatar2Input" type="file" accept="image/*" aria-label="Ảnh đại diện của Em" hidden>
+          <p class="hint-text">Chạm vào vòng tròn để đổi ảnh, chạm vào tên để sửa biệt danh</p>
+        </div>
+
+        <div class="glass-card timer-card">
+          <div class="timer-label">Mình đã bên nhau</div>
+          <div class="days-hero">
+            <span id="daysCount">0</span> <small>ngày</small>
+          </div>
+          <div class="clock-boxes">
+            <div class="clock-unit"><strong id="hoursCount">00</strong><span>Giờ</span></div>
+            <span class="colon">:</span>
+            <div class="clock-unit"><strong id="minsCount">00</strong><span>Phút</span></div>
+            <span class="colon">:</span>
+            <div class="clock-unit"><strong id="secsCount">00</strong><span>Giây</span></div>
+          </div>
+
+          <div class="date-picker-wrap">
+            <label for="startDateInput">Ngày bắt đầu yêu</label>
+            <input type="date" id="startDateInput" />
+          </div>
+
+          <div class="milestone-wrap">
+            <div id="milestoneText" class="milestone-text">Cột mốc tiếp theo: 100 ngày</div>
+            <div class="progress-track">
+              <div id="milestoneBar" class="progress-fill" style="width: 0%"></div>
+            </div>
           </div>
         </div>
-        <div class="glass counter">
-          <h2 id="homeHeading">Mình đã bên nhau</h2>
-          <p class="days"><strong id="daysCount">0</strong> ngày</p>
-          <div class="clock" aria-label="Thời gian bên nhau">
-            <span><strong id="hoursCount">00</strong><small>Giờ</small></span><b aria-hidden="true">:</b>
-            <span><strong id="minsCount">00</strong><small>Phút</small></span><b aria-hidden="true">:</b>
-            <span><strong id="secsCount">00</strong><small>Giây</small></span>
-          </div>
-          <label class="field" for="startDateInput">Ngày bắt đầu yêu</label>
-          <input id="startDateInput" type="date">
-          <label class="field" id="milestoneText" for="milestoneBar">Cột mốc tiếp theo: 100 ngày</label>
-          <progress id="milestoneBar" max="100" value="0"></progress>
+
+        <div class="glass-card quote-card">
+          <p id="dailyQuote">Mỗi ngày bên nhau là một điều đáng nhớ. ♥</p>
         </div>
-        <blockquote id="dailyQuote" class="glass quote">Mỗi ngày bên nhau là một điều đáng nhớ. 💗</blockquote>
       </section>
-      <section id="tab-wishes" aria-labelledby="wishesHeading" hidden>
-        <div class="glass">
-          <h2 id="wishesHeading">Điều mình mong muốn</h2>
-          <label class="field" for="wishFilter">Lọc mong muốn</label>
+
+      <!-- TAB 2: MONG MUỐN -->
+      <section id="tab-wishes" class="tab-pane">
+        <div class="glass-card">
+          <h2 class="section-title">✨ Điều mình mong muốn</h2>
+          <form id="wishForm" class="stack-form">
+            <label>Ai nhắn gửi?</label>
+            <select id="wishDirection">
+              <option value="anh_to_em">Anh muốn Em làm</option>
+              <option value="em_to_anh">Em muốn Anh làm</option>
+            </select>
+
+            <label>Điều mình mong muốn</label>
+            <textarea id="wishContent" rows="2" placeholder="Ví dụ: Cuối tuần đi ăn lẩu cùng nhau nhé..." required></textarea>
+
+            <label>Mức độ ưu tiên</label>
+            <select id="wishPriority">
+              <option value="Nhẹ nhàng 🌸">Nhẹ nhàng 🌸</option>
+              <option value="Rất mong chờ ✨">Rất mong chờ ✨</option>
+              <option value="Ưu tiên cao 🔥">Ưu tiên cao 🔥</option>
+            </select>
+
+            <button type="submit" class="primary-btn">+ Thêm mong muốn</button>
+          </form>
+        </div>
+
+        <div class="filter-bar">
           <select id="wishFilter">
-            <option value="all">Tất cả</option><option value="anh">Anh muốn Em</option>
-            <option value="em">Em muốn Anh</option><option value="done">Đã xong</option>
+            <option value="all">Tất cả mong muốn</option>
+            <option value="anh_to_em">Anh muốn Em làm</option>
+            <option value="em_to_anh">Em muốn Anh làm</option>
+            <option value="done">Đã thực hiện ✓</option>
           </select>
-          <form id="wishForm" class="entry-form" aria-label="Thêm mong muốn">
-            <label class="field">Người gửi<select name="author"><option>Anh</option><option>Em</option></select></label>
-            <label class="field">Điều mình mong muốn<textarea name="text" rows="3" required></textarea></label>
-            <label class="field">Mức độ ưu tiên<select name="priority"><option>Bình thường</option><option>Quan trọng</option><option>Rất quan trọng</option></select></label>
-            <button class="primary" type="submit">+ Thêm mong muốn</button>
+        </div>
+
+        <div id="wishesList" class="item-list"></div>
+      </section>
+
+      <!-- TAB 3: KỶ NIỆM -->
+      <section id="tab-memories" class="tab-pane">
+        <div class="glass-card">
+          <h2 class="section-title">📸 Lưu giữ kỷ niệm</h2>
+          <form id="memoryForm" class="stack-form">
+            <div class="two-col">
+              <div>
+                <label>Ngày kỷ niệm</label>
+                <input type="date" id="memoryDate" required />
+              </div>
+              <div>
+                <label>Địa điểm</label>
+                <input type="text" id="memoryLocation" placeholder="Quán quen, Đà Lạt..." />
+              </div>
+            </div>
+
+            <label>Tiêu đề kỷ niệm</label>
+            <input type="text" id="memoryTitle" placeholder="Buổi hẹn đầu tiên..." required />
+
+            <label>Cảm xúc / Ghi chú</label>
+            <textarea id="memoryNote" rows="2" placeholder="Ghi lại khoảnh khắc đáng nhớ của hai đứa..."></textarea>
+
+            <label class="file-btn">
+              <span id="memoryPhotoLabel">🖼️ Chọn 1 ảnh kỷ niệm (tùy chọn)</span>
+              <input type="file" id="memoryPhotoInput" accept="image/*" hidden />
+            </label>
+
+            <button type="submit" class="primary-btn">+ Lưu kỷ niệm</button>
           </form>
         </div>
-        <ul id="wishesList" class="entry-list" aria-label="Danh sách mong muốn"><li class="glass empty">Chưa có mong muốn nào.</li></ul>
+
+        <div id="memoriesList" class="item-list"></div>
       </section>
-      <section id="tab-memories" aria-labelledby="memoriesHeading" hidden>
-        <div class="glass">
-          <h2 id="memoriesHeading">Kỷ niệm của hai đứa</h2>
-          <form id="memoryForm" class="entry-form" aria-label="Thêm kỷ niệm">
-            <label class="field">Ngày<input name="date" type="date" required></label>
-            <label class="field">Tiêu đề<input name="title" maxlength="120" required></label>
-            <label class="field">Địa điểm<input name="location" maxlength="160"></label>
-            <label class="field">Ghi chú<textarea name="notes" rows="3"></textarea></label>
-            <label class="field">Ảnh kỷ niệm (không bắt buộc)<input id="memoryPhotoInput" name="photo" type="file" accept="image/*"></label>
-            <button class="primary" type="submit">+ Thêm kỷ niệm</button>
+
+      <!-- TAB 4: TÂM SỰ -->
+      <section id="tab-hurts" class="tab-pane">
+        <div class="glass-card">
+          <h2 class="section-title">💌 Góc tâm sự & Lắng nghe</h2>
+          <p class="sub-desc">Nơi giãi bày những điều làm mình buồn để cả hai hiểu và thương nhau hơn.</p>
+          <form id="hurtForm" class="stack-form">
+            <div class="two-col">
+              <div>
+                <label>Người chia sẻ</label>
+                <select id="hurtSender">
+                  <option value="Anh">Anh</option>
+                  <option value="Em">Em</option>
+                </select>
+              </div>
+              <div>
+                <label>Ngày xảy ra</label>
+                <input type="date" id="hurtDate" required />
+              </div>
+            </div>
+
+            <label>Điều khiến mình buồn / tổn thương</label>
+            <textarea id="hurtContent" rows="2" placeholder="Hôm nay mình hơi tủi thân vì..." required></textarea>
+
+            <label>Điều mình mong được xoa dịu</label>
+            <input type="text" id="hurtHeal" placeholder="Chỉ cần một cái ôm hoặc lời giải thích..." />
+
+            <button type="submit" class="primary-btn">+ Gửi tâm sự</button>
           </form>
         </div>
-        <ol id="memoriesList" class="entry-list timeline" aria-label="Dòng thời gian kỷ niệm"><li class="glass empty">Chưa có kỷ niệm nào.</li></ol>
+
+        <div id="hurtsList" class="item-list"></div>
       </section>
-      <section id="tab-hurts" aria-labelledby="hurtsHeading" hidden>
-        <div class="glass">
-          <h2 id="hurtsHeading">Tâm sự cùng nhau</h2>
-          <form id="hurtForm" class="entry-form" aria-label="Ghi tâm sự">
-            <label class="field">Người chia sẻ<select name="author"><option>Anh</option><option>Em</option></select></label>
-            <label class="field">Ngày xảy ra<input name="date" type="date" required></label>
-            <label class="field">Điều khiến mình buồn<textarea name="hurt" rows="3" required></textarea></label>
-            <label class="field">Điều mình mong được xoa dịu<textarea name="comfort" rows="3"></textarea></label>
-            <button class="primary" type="submit">Ghi lại tâm sự</button>
-          </form>
-        </div>
-        <ul id="hurtsList" class="entry-list" aria-label="Danh sách tâm sự"><li class="glass empty">Chưa có tâm sự nào.</li></ul>
-      </section>
-      <p id="uiStatus" class="ui-status" role="status"></p>
     </main>
-    <nav class="bottom-nav" aria-label="Điều hướng chính">
-      <button type="button" aria-controls="tab-home" aria-current="page"><span aria-hidden="true">🏠</span>Trang chủ</button>
-      <button type="button" aria-controls="tab-wishes"><span aria-hidden="true">✨</span>Mong muốn</button>
-      <button type="button" aria-controls="tab-memories"><span aria-hidden="true">📸</span>Kỷ niệm</button>
-      <button type="button" aria-controls="tab-hurts"><span aria-hidden="true">💌</span>Tâm sự</button>
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-tab="tab-home">
+        <span class="nav-ico">🏠</span>
+        <span>Trang chủ</span>
+      </button>
+      <button class="nav-btn" data-tab="tab-wishes">
+        <span class="nav-ico">✨</span>
+        <span>Mong muốn</span>
+      </button>
+      <button class="nav-btn" data-tab="tab-memories">
+        <span class="nav-ico">📷</span>
+        <span>Kỷ niệm</span>
+      </button>
+      <button class="nav-btn" data-tab="tab-hurts">
+        <span class="nav-ico">💌</span>
+        <span>Tâm sự</span>
+      </button>
     </nav>
   </div>
-  <dialog id="syncModal" aria-labelledby="syncHeading" aria-describedby="syncDescription">
-    <div class="dialog-heading">
-      <h2 id="syncHeading">☁️ Cloud Sync</h2>
-      <form method="dialog"><button class="icon-button" type="submit" aria-label="Đóng Cloud Sync" autofocus>✕</button></form>
-    </div>
-    <p id="syncDescription" class="empty">Đồng bộ và sao lưu hiện chỉ có giao diện. Chưa nhập token thật.</p>
-    <div class="entry-form">
-      <label class="field" for="gistToken">GitHub Personal Access Token</label>
-      <input id="gistToken" type="password" autocomplete="off" spellcheck="false">
-      <label class="field" for="gistId">Gist ID</label>
-      <input id="gistId" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button id="btnCreateGist" class="primary" type="button">✨ Tạo kho Cloud mới</button>
-      <button id="btnPushCloud" type="button">⬆️ Đẩy dữ liệu lên Cloud</button>
-      <button id="btnPullCloud" type="button">⬇️ Tải dữ liệu từ Cloud về</button>
-      <label class="check-field"><input id="autoPullCheck" type="checkbox">Tự động tải dữ liệu khi mở web</label>
-      <div class="backup-actions">
-        <button id="btnExportJson" type="button">Xuất file .json</button>
-        <button id="btnImportJson" type="button">Nhập file .json</button>
-        <input id="importFileInput" type="file" accept=".json,application/json" hidden>
+
+  <!-- MODAL CLOUD SYNC -->
+  <div id="syncModal" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>☁️ Cloud Sync</h3>
+        <button id="btnCloseSync" class="icon-btn">✕</button>
       </div>
-      <p id="syncStatus" class="ui-status" role="status"></p>
+      <p class="sub-desc">Đồng bộ dữ liệu giữa 2 điện thoại qua GitHub Gist bí mật.</p>
+
+      <div class="stack-form">
+        <label>GitHub Personal Access Token (quyền gist)</label>
+        <input type="password" id="gistToken" placeholder="ghp_..." autocomplete="off" />
+
+        <label>Gist ID (để trống nếu tạo kho mới lần đầu)</label>
+        <input type="text" id="gistId" placeholder="Tự động điền sau khi tạo kho mới" />
+
+        <button type="button" id="btnCreateGist" class="primary-btn">✨ Tạo kho Cloud mới</button>
+        <button type="button" id="btnPushCloud" class="secondary-btn">⬆️ Đẩy dữ liệu lên Cloud</button>
+        <button type="button" id="btnPullCloud" class="secondary-btn">⬇️ Tải dữ liệu từ Cloud về</button>
+
+        <label class="check-row">
+          <input type="checkbox" id="autoPullCheck" />
+          <span>Tự động tải dữ liệu mới khi mở web</span>
+        </label>
+
+        <div class="two-col">
+          <button type="button" id="btnExportJson" class="secondary-btn">📥 Xuất .json</button>
+          <button type="button" id="btnImportJson" class="secondary-btn">📤 Nhập .json</button>
+          <input type="file" id="importFileInput" accept=".json,application/json" hidden />
+        </div>
+
+        <div id="syncStatus" class="status-msg">Sẵn sàng đồng bộ.</div>
+      </div>
     </div>
-  </dialog>
-  <script>
-    (() => {
-      const byId = (id) => document.getElementById(id);
-      const root = document.documentElement;
-      const themeButton = byId('btnTheme');
-      if (themeButton) {
-        themeButton.addEventListener('click', () => {
-          const light = root.dataset.theme !== 'light';
-          root.dataset.theme = light ? 'light' : 'dark';
-          themeButton.textContent = light ? '🌙' : '☀️';
-          themeButton.setAttribute('aria-pressed', String(light));
-        });
-      }
-      const tabs = [...document.querySelectorAll('.bottom-nav button[aria-controls]')];
-      for (const tab of tabs) {
-        tab.addEventListener('click', () => {
-          for (const button of tabs) {
-            const active = button === tab;
-            const panel = byId(button.getAttribute('aria-controls'));
-            if (panel) panel.hidden = !active;
-            if (active) button.setAttribute('aria-current', 'page');
-            else button.removeAttribute('aria-current');
-          }
-          const status = byId('uiStatus');
-          if (status) status.textContent = '';
-          window.scrollTo(0, 0);
-        });
-      }
-      const syncButton = byId('btnOpenSync');
-      const modal = byId('syncModal');
-      if (syncButton && modal) syncButton.addEventListener('click', () => {
-        if (!modal.open) modal.showModal();
-      });
-      for (const id of ['wishForm', 'memoryForm', 'hurtForm']) {
-        const form = byId(id);
-        if (form) form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          const status = byId('uiStatus');
-          if (status) status.textContent = 'Biểu mẫu này chưa lưu dữ liệu.';
-        });
-      }
-      for (const id of ['btnCreateGist', 'btnPushCloud', 'btnPullCloud', 'btnExportJson', 'btnImportJson']) {
-        const button = byId(id);
-        if (button) button.addEventListener('click', () => {
-          const status = byId('syncStatus');
-          if (status) status.textContent = 'Chưa có chức năng đồng bộ hoặc sao lưu.';
-        });
-      }
-    })();
-  </script>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
