@@ -1,8 +1,6 @@
+const CLOUD_ENDPOINT = 'https://tu-vung-anle-default-rtdb.firebaseio.com/date_love/shared_data.json';
 const DATA_KEY = 'our_love_data_v1';
-const CFG_KEY = 'our_love_sync_cfg_v1';
-const FIREBASE_URL = 'https://tu-vung-anle-default-rtdb.firebaseio.com';
-const CLOUD_ENDPOINT = `${FIREBASE_URL}/date_love/shared_data.json`;
-let autoPushTimer = null;
+const CFG_KEY = 'our_love_ui_cfg_v1';
 
 const QUOTES = [
   'Mỗi ngày bên nhau là một điều đáng nhớ. ♥',
@@ -21,79 +19,48 @@ const defaultData = {
   wishes: [],
   memories: [],
   hurts: [],
-  updatedAt: Date.now()
+  updatedAt: 0
 };
 
 let appData = loadData();
-let syncCfg = loadCfg();
+let uiCfg = loadCfg();
+let autoPushTimer = null;
+let isSyncing = false;
 
 function loadData() {
   try {
     const raw = localStorage.getItem(DATA_KEY);
-    return normalizeData(raw ? JSON.parse(raw) : {});
+    return raw ? { ...defaultData, ...JSON.parse(raw) } : { ...defaultData };
   } catch {
-    return normalizeData({});
+    return { ...defaultData };
   }
-}
-
-function normalizeData(obj) {
-  const d = obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
-  return {
-    ...defaultData,
-    ...d,
-    wishes: Array.isArray(d.wishes) ? d.wishes : [],
-    memories: Array.isArray(d.memories) ? d.memories : [],
-    hurts: Array.isArray(d.hurts) ? d.hurts : [],
-    deletedIds: Array.isArray(d.deletedIds) ? d.deletedIds.map(String) : []
-  };
-}
-
-function localDateStr(date = new Date()) {
-  const p = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
 }
 
 function saveData() {
   appData.updatedAt = Date.now();
-  try {
-    localStorage.setItem(DATA_KEY, JSON.stringify(appData));
-  } catch {
-    setSyncStatus('⚠️ Bộ nhớ trình duyệt đã đầy, không lưu được trên máy. Hãy xóa bớt ảnh.');
-  }
-  scheduleAutoPush();
-}
-
-function scheduleAutoPush() {
+  localStorage.setItem(DATA_KEY, JSON.stringify(appData));
   clearTimeout(autoPushTimer);
-  autoPushTimer = setTimeout(() => pushCloud(true), 1500);
+  setSyncBadge('⏳ Đang lưu...');
+  autoPushTimer = setTimeout(() => pushCloud(true), 800);
 }
 
 function loadCfg() {
-  const base = { autoPull: false, theme: 'dark' };
   try {
-    const cfg = JSON.parse(localStorage.getItem(CFG_KEY)) || {};
-    return { ...base, autoPull: Boolean(cfg.autoPull), theme: cfg.theme === 'light' ? 'light' : 'dark' };
+    const cfg = JSON.parse(localStorage.getItem(CFG_KEY));
+    return cfg ? { autoPull: true, theme: 'dark', ...cfg } : { autoPull: true, theme: 'dark' };
   } catch {
-    return base;
+    return { autoPull: true, theme: 'dark' };
   }
 }
 
 function saveCfg() {
-  localStorage.setItem(CFG_KEY, JSON.stringify(syncCfg));
+  localStorage.setItem(CFG_KEY, JSON.stringify(uiCfg));
 }
 
 function esc(str) {
   return String(str || '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
-}
-
-function safeId(id) {
-  return String(id ?? '').replace(/[^\w-]/g, '');
-}
-
-function safeImg(src) {
-  return typeof src === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src) ? src : '';
 }
 
 function compressImage(file, maxSize, quality) {
@@ -115,11 +82,11 @@ function compressImage(file, maxSize, quality) {
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
+        if (ctx) ctx.drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = reject;
-      img.src = e.target.result;
+      img.src = String(e.target?.result || '');
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -166,15 +133,15 @@ function updateTimer() {
   const hEl = document.getElementById('hoursCount');
   const mEl = document.getElementById('minsCount');
   const sEl = document.getElementById('secsCount');
-  if (dEl) dEl.textContent = days;
+  if (dEl) dEl.textContent = String(days);
   if (hEl) hEl.textContent = String(hours).padStart(2, '0');
   if (mEl) mEl.textContent = String(mins).padStart(2, '0');
   if (sEl) sEl.textContent = String(secs).padStart(2, '0');
 
   const milestones = [100, 200, 365, 500, 730, 1000, 1500, 2000, 3650];
   const next = milestones.find(m => m > days) || (Math.floor(days / 100) + 1) * 100;
-  const prev = Math.max(0, ...milestones.filter(m => m <= days), next - 100 <= days && !milestones.includes(next) ? next - 100 : 0);
-  const pct = Math.min(100, Math.max(4, Math.round(((days - prev) / Math.max(1, next - prev)) * 100)));
+  const prev = milestones[milestones.indexOf(next) - 1] || 0;
+  const pct = Math.min(100, Math.max(4, Math.round(((days - prev) / (next - prev)) * 100)));
 
   const mText = document.getElementById('milestoneText');
   const mBar = document.getElementById('milestoneBar');
@@ -187,7 +154,7 @@ function renderWishes() {
   const filter = document.getElementById('wishFilter')?.value || 'all';
   if (!list) return;
 
-  const items = appData.wishes.filter(w => {
+  const items = (appData.wishes || []).filter(w => {
     if (filter === 'done') return w.done;
     if (filter === 'anh_to_em') return w.direction === 'anh_to_em' && !w.done;
     if (filter === 'em_to_anh') return w.direction === 'em_to_anh' && !w.done;
@@ -211,33 +178,17 @@ function renderWishes() {
         </div>
         <div class="entry-body">${esc(w.content)}</div>
         <div class="entry-actions">
-          <button class="mini-btn ok" onclick="toggleWish('${safeId(w.id)}')">${w.done ? '✓ Đã chiều ý' : 'Đánh dấu đã làm'}</button>
-          <button class="mini-btn del" onclick="deleteWish('${safeId(w.id)}')">Xóa</button>
+          <button type="button" class="mini-btn ok" data-action="toggle-wish" data-id="${esc(w.id)}">${w.done ? '✓ Đã chiều ý' : 'Đánh dấu đã làm'}</button>
+          <button type="button" class="mini-btn del" data-action="del-wish" data-id="${esc(w.id)}">Xóa</button>
         </div>
       </div>`;
   }).join('');
 }
 
-window.toggleWish = id => {
-  const item = appData.wishes.find(w => safeId(w.id) === id);
-  if (item) {
-    item.done = !item.done;
-    saveData();
-    renderWishes();
-  }
-};
-
-window.deleteWish = id => {
-  markDeleted(id);
-  appData.wishes = appData.wishes.filter(w => safeId(w.id) !== id);
-  saveData();
-  renderWishes();
-};
-
 function renderMemories() {
   const list = document.getElementById('memoriesList');
   if (!list) return;
-  if (!appData.memories.length) {
+  if (!(appData.memories || []).length) {
     list.innerHTML = '<div class="empty-msg">Chưa có kỷ niệm nào được lưu.</div>';
     return;
   }
@@ -250,25 +201,18 @@ function renderMemories() {
       </div>
       <strong>${esc(m.title)}</strong>
       ${m.note ? `<div class="entry-body">${esc(m.note)}</div>` : ''}
-      ${safeImg(m.photo) ? `<img class="entry-photo" src="${safeImg(m.photo)}" alt="Kỷ niệm" />` : ''}
+      ${m.photo ? `<img class="entry-photo" src="${m.photo}" alt="Kỷ niệm" />` : ''}
       <div class="entry-actions">
-        <button class="mini-btn del" onclick="deleteMemory('${safeId(m.id)}')">Xóa</button>
+        <button type="button" class="mini-btn del" data-action="del-memory" data-id="${esc(m.id)}">Xóa</button>
       </div>
     </div>
   `).join('');
 }
 
-window.deleteMemory = id => {
-  markDeleted(id);
-  appData.memories = appData.memories.filter(m => safeId(m.id) !== id);
-  saveData();
-  renderMemories();
-};
-
 function renderHurts() {
   const list = document.getElementById('hurtsList');
   if (!list) return;
-  if (!appData.hurts.length) {
+  if (!(appData.hurts || []).length) {
     list.innerHTML = '<div class="empty-msg">Chưa có tâm sự nào. Mong hai đứa luôn vui vẻ nhé!</div>';
     return;
   }
@@ -281,28 +225,12 @@ function renderHurts() {
       <div class="entry-body">${esc(h.content)}</div>
       ${h.heal ? `<div class="sub-desc">Mong muốn: ${esc(h.heal)}</div>` : ''}
       <div class="entry-actions">
-        <button class="mini-btn ok" onclick="toggleHurt('${safeId(h.id)}')">${h.healed ? '💚 Đã hiểu nhau hơn' : 'Đánh dấu đã làm hòa'}</button>
-        <button class="mini-btn del" onclick="deleteHurt('${safeId(h.id)}')">Xóa</button>
+        <button type="button" class="mini-btn ok" data-action="toggle-hurt" data-id="${esc(h.id)}">${h.healed ? '💚 Đã hiểu nhau hơn' : 'Đánh dấu đã làm hòa'}</button>
+        <button type="button" class="mini-btn del" data-action="del-hurt" data-id="${esc(h.id)}">Xóa</button>
       </div>
     </div>
   `).join('');
 }
-
-window.toggleHurt = id => {
-  const item = appData.hurts.find(h => safeId(h.id) === id);
-  if (item) {
-    item.healed = !item.healed;
-    saveData();
-    renderHurts();
-  }
-};
-
-window.deleteHurt = id => {
-  markDeleted(id);
-  appData.hurts = appData.hurts.filter(h => safeId(h.id) !== id);
-  saveData();
-  renderHurts();
-};
 
 function renderAll() {
   renderAvatarsAndNames();
@@ -314,111 +242,82 @@ function renderAll() {
   renderHurts();
 }
 
-function updateSyncDot(online = false) {
-  const dot = document.getElementById('syncDot');
-  if (dot) dot.classList.toggle('online', Boolean(online));
-}
-
 function setSyncStatus(msg) {
   const el = document.getElementById('syncStatus');
   if (el) el.textContent = msg;
 }
 
-function nowVN() {
-  return new Date().toLocaleTimeString('vi-VN');
-}
-
-function mergeList(localList, cloudList, cloudNewer) {
-  const keyOf = item => (item && item.id != null ? `id:${item.id}` : `json:${JSON.stringify(item)}`);
-  const map = new Map();
-  const first = cloudNewer ? localList : cloudList;
-  const second = cloudNewer ? cloudList : localList;
-  for (const item of Array.isArray(first) ? first : []) map.set(keyOf(item), item);
-  for (const item of Array.isArray(second) ? second : []) map.set(keyOf(item), item);
-  return [...map.values()];
-}
-
-function mergeData(local, cloud) {
-  const cloudNewer = Number(cloud.updatedAt || 0) >= Number(local.updatedAt || 0);
-  const base = cloudNewer ? { ...local, ...cloud } : { ...cloud, ...local };
-  const deletedIds = [...new Set([
-    ...(Array.isArray(local.deletedIds) ? local.deletedIds : []),
-    ...(Array.isArray(cloud.deletedIds) ? cloud.deletedIds : [])
-  ].map(String))];
-  const alive = list => list.filter(item => !(item && item.id != null && deletedIds.includes(safeId(item.id))));
-  return {
-    ...normalizeData(base),
-    wishes: alive(mergeList(local.wishes, cloud.wishes, cloudNewer)),
-    memories: alive(mergeList(local.memories, cloud.memories, cloudNewer)),
-    hurts: alive(mergeList(local.hurts, cloud.hurts, cloudNewer)),
-    deletedIds,
-    updatedAt: Math.max(Number(local.updatedAt || 0), Number(cloud.updatedAt || 0))
-  };
-}
-
-function markDeleted(id) {
-  if (!Array.isArray(appData.deletedIds)) appData.deletedIds = [];
-  if (!appData.deletedIds.includes(String(id))) appData.deletedIds.push(String(id));
+function setSyncBadge(text) {
+  const pill = document.querySelector('#btnOpenSync span:first-child');
+  if (pill) pill.textContent = text;
 }
 
 async function pushCloud(silent = false) {
-  clearTimeout(autoPushTimer);
+  if (isSyncing) return;
+  isSyncing = true;
   if (!silent) setSyncStatus('⏳ Đang đẩy dữ liệu lên Cloud...');
   try {
-    // Gộp dữ liệu Cloud trước khi ghi đè để không xóa mất thay đổi từ máy kia
-    const current = await fetch(CLOUD_ENDPOINT, { method: 'GET' });
-    if (!current.ok) throw new Error(`HTTP ${current.status}`);
-    const cloud = await current.json();
-    if (cloud && typeof cloud === 'object' && !Array.isArray(cloud)) {
-      appData = mergeData(appData, cloud);
-      appData.updatedAt = Date.now();
-      try { localStorage.setItem(DATA_KEY, JSON.stringify(appData)); } catch { /* quota */ }
-      renderAll();
-    }
     const res = await fetch(CLOUD_ENDPOINT, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(appData)
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    updateSyncDot(true);
-    setSyncStatus(`✅ ${silent ? 'Tự động lưu' : 'Đã đẩy dữ liệu'} lên Cloud lúc ${nowVN()}.`);
+    setSyncBadge('☁️ Cloud Sync');
+    if (!silent) setSyncStatus(`✅ Đã đồng bộ lên Cloud lúc ${new Date().toLocaleTimeString('vi-VN')}!`);
   } catch (err) {
-    updateSyncDot(false);
-    const reason = err instanceof TypeError ? 'mất kết nối mạng' : err.message;
-    setSyncStatus(`❌ Lỗi đẩy dữ liệu lên Cloud (${reason}).`);
+    setSyncBadge('⚠️ Lỗi Sync');
+    if (!silent) setSyncStatus(`❌ Lỗi đẩy dữ liệu (${err.message}).`);
+  } finally {
+    isSyncing = false;
   }
 }
 
 async function pullCloud(silent = false) {
+  if (isSyncing || autoPushTimer) return;
+  isSyncing = true;
   if (!silent) setSyncStatus('⏳ Đang tải dữ liệu từ Cloud...');
   try {
-    const res = await fetch(CLOUD_ENDPOINT, { method: 'GET' });
+    const res = await fetch(`${CLOUD_ENDPOINT}?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const cloud = await res.json();
-    updateSyncDot(true);
-    if (!cloud || typeof cloud !== 'object' || Array.isArray(cloud)) {
-      setSyncStatus('ℹ️ Cloud chưa có dữ liệu. Hãy bấm "Đẩy dữ liệu lên Cloud" trước.');
+    const remote = await res.json();
+    if (!remote) {
+      if (!silent && appData.updatedAt > 0) await pushCloud(true);
+      if (!silent) setSyncStatus('☁️ Cloud sẵn sàng tự động đồng bộ.');
       return;
     }
-    appData = mergeData(appData, cloud);
-    try { localStorage.setItem(DATA_KEY, JSON.stringify(appData)); } catch { /* quota */ }
-    renderAll();
-    setSyncStatus(`✅ Đã tải & gộp dữ liệu từ Cloud lúc ${nowVN()}.`);
+    const remoteTime = Number(remote.updatedAt || 0);
+    const localTime = Number(appData.updatedAt || 0);
+
+    // Chỉ cập nhật khi Cloud có bản mới hơn (hoặc khi người dùng bấm tải thủ công)
+    if (!silent || remoteTime > localTime) {
+      appData = {
+        ...defaultData,
+        ...remote,
+        wishes: Array.isArray(remote.wishes) ? remote.wishes : [],
+        memories: Array.isArray(remote.memories) ? remote.memories : [],
+        hurts: Array.isArray(remote.hurts) ? remote.hurts : []
+      };
+      localStorage.setItem(DATA_KEY, JSON.stringify(appData));
+      renderAll();
+    }
+    setSyncBadge('☁️ Cloud Sync');
+    if (!silent) setSyncStatus(`✅ Đã đồng bộ dữ liệu mới nhất lúc ${new Date().toLocaleTimeString('vi-VN')}!`);
   } catch (err) {
-    updateSyncDot(false);
-    const reason = err instanceof TypeError ? 'mất kết nối mạng' : err.message;
-    setSyncStatus(`❌ Lỗi tải dữ liệu từ Cloud (${reason}).`);
+    if (!silent) setSyncStatus(`❌ Lỗi tải dữ liệu (${err.message}).`);
+  } finally {
+    isSyncing = false;
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (syncCfg.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  updateSyncDot();
+  if (uiCfg.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
 
-  const today = localDateStr();
-  if (document.getElementById('memoryDate')) document.getElementById('memoryDate').value = today;
-  if (document.getElementById('hurtDate')) document.getElementById('hurtDate').value = today;
+  const today = new Date().toISOString().split('T')[0];
+  const memDate = document.getElementById('memoryDate');
+  const hurtDate = document.getElementById('hurtDate');
+  if (memDate) memDate.value = today;
+  if (hurtDate) hurtDate.value = today;
 
   const qEl = document.getElementById('dailyQuote');
   if (qEl) qEl.textContent = QUOTES[new Date().getDate() % QUOTES.length];
@@ -426,49 +325,54 @@ document.addEventListener('DOMContentLoaded', () => {
   renderAll();
   setInterval(updateTimer, 1000);
 
-  // Navigation tabs
+  // Tự động tải ngay khi mở web, khi quay lại tab trên điện thoại, và kiểm tra ngầm mỗi 5 giây
+  pullCloud(true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pullCloud(true);
+  });
+  window.addEventListener('focus', () => pullCloud(true));
+  setInterval(() => {
+    if (document.visibilityState === 'visible') pullCloud(true);
+  }, 5000);
+
+  // Chuyển tab dưới đáy
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
-      document.getElementById(btn.dataset.tab)?.classList.add('active');
+      const tabId = btn.getAttribute('data-tab');
+      if (tabId) document.getElementById(tabId)?.classList.add('active');
     });
   });
 
-  // Theme toggle
+  // Đổi giao diện Sáng/Tối
   document.getElementById('btnTheme')?.addEventListener('click', () => {
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     if (isLight) {
       document.documentElement.removeAttribute('data-theme');
-      syncCfg.theme = 'dark';
+      uiCfg.theme = 'dark';
     } else {
       document.documentElement.setAttribute('data-theme', 'light');
-      syncCfg.theme = 'light';
+      uiCfg.theme = 'light';
     }
     saveCfg();
   });
 
-  // Avatars & names
+  // Avatar & Biệt danh
   [1, 2].forEach(idx => {
     document.getElementById(`avatar${idx}Box`)?.addEventListener('click', () => {
       document.getElementById(`avatar${idx}Input`)?.click();
     });
     document.getElementById(`avatar${idx}Input`)?.addEventListener('change', async e => {
-      const file = e.target.files?.[0];
+      const file = e.target?.files?.[0];
       if (!file) return;
-      try {
-        appData[`avatar${idx}`] = await compressImage(file, 160, 0.7);
-        saveData();
-        renderAvatarsAndNames();
-      } catch {
-        setSyncStatus('❌ Không đọc được ảnh, hãy chọn ảnh khác.');
-      } finally {
-        e.target.value = '';
-      }
+      appData[`avatar${idx}`] = await compressImage(file, 160, 0.7);
+      saveData();
+      renderAvatarsAndNames();
     });
     document.getElementById(`btnEditName${idx}`)?.addEventListener('click', () => {
-      const nextName = prompt('Nhập biệt danh mới:', appData[`name${idx}`]);
+      const nextName = window.prompt('Nhập biệt danh mới:', appData[`name${idx}`]);
       if (nextName && nextName.trim()) {
         appData[`name${idx}`] = nextName.trim();
         saveData();
@@ -477,103 +381,137 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Start date
+  // Ngày bắt đầu yêu
   document.getElementById('startDateInput')?.addEventListener('change', e => {
-    if (e.target.value) {
-      appData.startDate = e.target.value;
+    const val = e.target?.value;
+    if (val) {
+      appData.startDate = val;
       saveData();
       updateTimer();
     }
   });
 
-  // Wishes
+  // Form Mong muốn
   document.getElementById('wishForm')?.addEventListener('submit', e => {
     e.preventDefault();
-    const content = document.getElementById('wishContent').value.trim();
+    const contentEl = document.getElementById('wishContent');
+    const content = contentEl?.value.trim() || '';
     if (!content) return;
+    appData.wishes = appData.wishes || [];
     appData.wishes.unshift({
       id: String(Date.now()),
-      direction: document.getElementById('wishDirection').value,
+      direction: document.getElementById('wishDirection')?.value || 'anh_to_em',
       content,
-      priority: document.getElementById('wishPriority').value,
+      priority: document.getElementById('wishPriority')?.value || 'Nhẹ nhàng 🌸',
       done: false
     });
-    document.getElementById('wishContent').value = '';
+    if (contentEl) contentEl.value = '';
     saveData();
     renderWishes();
   });
   document.getElementById('wishFilter')?.addEventListener('change', renderWishes);
 
-  // Memories
+  // Form Kỷ niệm
   let pendingPhoto = '';
   document.getElementById('memoryPhotoInput')?.addEventListener('change', async e => {
-    const file = e.target.files?.[0];
+    const file = e.target?.files?.[0];
     if (!file) return;
-    const label = document.getElementById('memoryPhotoLabel');
-    try {
-      pendingPhoto = await compressImage(file, 600, 0.65);
-      if (label) label.textContent = `✅ Đã chọn ảnh: ${file.name}`;
-    } catch {
-      pendingPhoto = '';
-      setSyncStatus('❌ Không đọc được ảnh, hãy chọn ảnh khác.');
-    } finally {
-      e.target.value = '';
-    }
+    pendingPhoto = await compressImage(file, 600, 0.65);
+    const lbl = document.getElementById('memoryPhotoLabel');
+    if (lbl) lbl.textContent = `✅ Đã chọn ảnh: ${file.name}`;
   });
   document.getElementById('memoryForm')?.addEventListener('submit', e => {
     e.preventDefault();
-    const title = document.getElementById('memoryTitle').value.trim();
+    const titleEl = document.getElementById('memoryTitle');
+    const locEl = document.getElementById('memoryLocation');
+    const noteEl = document.getElementById('memoryNote');
+    const title = titleEl?.value.trim() || '';
     if (!title) return;
+    appData.memories = appData.memories || [];
     appData.memories.unshift({
       id: String(Date.now()),
-      date: document.getElementById('memoryDate').value || today,
-      location: document.getElementById('memoryLocation').value.trim(),
+      date: document.getElementById('memoryDate')?.value || today,
+      location: locEl?.value.trim() || '',
       title,
-      note: document.getElementById('memoryNote').value.trim(),
+      note: noteEl?.value.trim() || '',
       photo: pendingPhoto
     });
     pendingPhoto = '';
-    document.getElementById('memoryTitle').value = '';
-    document.getElementById('memoryLocation').value = '';
-    document.getElementById('memoryNote').value = '';
-    document.getElementById('memoryPhotoLabel').textContent = '🖼️ Chọn 1 ảnh kỷ niệm (tùy chọn)';
+    if (titleEl) titleEl.value = '';
+    if (locEl) locEl.value = '';
+    if (noteEl) noteEl.value = '';
+    const lbl = document.getElementById('memoryPhotoLabel');
+    if (lbl) lbl.textContent = '🖼️ Chọn 1 ảnh kỷ niệm (tùy chọn)';
     saveData();
     renderMemories();
   });
 
-  // Hurts
+  // Form Tâm sự
   document.getElementById('hurtForm')?.addEventListener('submit', e => {
     e.preventDefault();
-    const content = document.getElementById('hurtContent').value.trim();
+    const contentEl = document.getElementById('hurtContent');
+    const healEl = document.getElementById('hurtHeal');
+    const content = contentEl?.value.trim() || '';
     if (!content) return;
+    appData.hurts = appData.hurts || [];
     appData.hurts.unshift({
       id: String(Date.now()),
-      sender: document.getElementById('hurtSender').value,
-      date: document.getElementById('hurtDate').value || today,
+      sender: document.getElementById('hurtSender')?.value || 'Anh',
+      date: document.getElementById('hurtDate')?.value || today,
       content,
-      heal: document.getElementById('hurtHeal').value.trim(),
+      heal: healEl?.value.trim() || '',
       healed: false
     });
-    document.getElementById('hurtContent').value = '';
-    document.getElementById('hurtHeal').value = '';
+    if (contentEl) contentEl.value = '';
+    if (healEl) healEl.value = '';
     saveData();
     renderHurts();
   });
 
-  // Cloud Sync Modal
+  // Xử lý nút Hoàn thành / Xóa
+  document.addEventListener('click', e => {
+    const btn = e.target instanceof Element ? e.target.closest('[data-action]') : null;
+    if (!btn) return;
+    const action = btn.getAttribute('data-action');
+    const id = btn.getAttribute('data-id');
+    if (!id) return;
+
+    if (action === 'toggle-wish') {
+      const item = (appData.wishes || []).find(w => w.id === id);
+      if (item) { item.done = !item.done; saveData(); renderWishes(); }
+    } else if (action === 'del-wish') {
+      appData.wishes = (appData.wishes || []).filter(w => w.id !== id);
+      saveData(); renderWishes();
+    } else if (action === 'del-memory') {
+      appData.memories = (appData.memories || []).filter(m => m.id !== id);
+      saveData(); renderMemories();
+    } else if (action === 'toggle-hurt') {
+      const item = (appData.hurts || []).find(h => h.id === id);
+      if (item) { item.healed = !item.healed; saveData(); renderHurts(); }
+    } else if (action === 'del-hurt') {
+      appData.hurts = (appData.hurts || []).filter(h => h.id !== id);
+      saveData(); renderHurts();
+    }
+  });
+
+  // Modal Cloud Sync
   const modal = document.getElementById('syncModal');
   document.getElementById('btnOpenSync')?.addEventListener('click', () => {
-    const autoPull = document.getElementById('autoPullCheck');
-    if (autoPull) autoPull.checked = Boolean(syncCfg.autoPull);
+    const chk = document.getElementById('autoPullCheck');
+    if (chk) chk.checked = true;
     if (modal) modal.hidden = false;
   });
-  document.getElementById('btnCloseSync')?.addEventListener('click', () => { if (modal) modal.hidden = true; });
-  modal?.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+  document.getElementById('btnCloseSync')?.addEventListener('click', () => {
+    if (modal) modal.hidden = true;
+  });
+  modal?.addEventListener('click', e => {
+    if (e.target === modal) modal.hidden = true;
+  });
 
   document.getElementById('btnPushCloud')?.addEventListener('click', () => pushCloud(false));
   document.getElementById('btnPullCloud')?.addEventListener('click', () => pullCloud(false));
   document.getElementById('autoPullCheck')?.addEventListener('change', e => {
-    syncCfg.autoPull = e.target.checked;
+    uiCfg.autoPull = Boolean(e.target?.checked);
     saveCfg();
   });
 
@@ -583,7 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
     a.href = URL.createObjectURL(blob);
     a.download = 'goc-nho-hai-dua.json';
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setSyncStatus('📥 Đã tải xuống file dự phòng goc-nho-hai-dua.json');
   });
 
@@ -591,27 +528,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('importFileInput')?.click();
   });
   document.getElementById('importFileInput')?.addEventListener('change', e => {
-    const file = e.target.files?.[0];
+    const file = e.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        const parsed = JSON.parse(ev.target.result);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid');
-        appData = normalizeData(parsed);
+        appData = { ...defaultData, ...JSON.parse(String(ev.target?.result || '{}')) };
         saveData();
         renderAll();
         setSyncStatus('✅ Đã khôi phục dữ liệu từ file .json!');
       } catch {
         setSyncStatus('❌ File .json không hợp lệ.');
-      } finally {
-        e.target.value = '';
       }
     };
     reader.readAsText(file);
   });
-
-  if (syncCfg.autoPull) {
-    pullCloud(true);
-  }
 });
